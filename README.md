@@ -1,2 +1,1 @@
-# pubbias-power
-# pubbias-power
+Software supporting the manuscript "The Power Functions of Begg’s and Egger’s Tests for Publication Bias". ```figs.R``` contains routines to generate the figures that appear in the manuscript. ```utils.R``` contains supporting routines.
