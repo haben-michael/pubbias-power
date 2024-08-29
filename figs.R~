@@ -1,0 +1,265 @@
+
+## 52. figure illustrating beggs test
+
+
+## p-val thresholding
+require(MASS)
+n <- 1e6
+extrafont::loadfonts()
+png('figs/thresholding_y.png', width = 1024, height = 768, pointsize=15, family='CM Roman')
+threshold <- qnorm(1-.3)
+sigma <- sort(runif(n,0,1))
+## sigma <- sort(rexp(n))
+y <- rnorm(n,sd=sigma)
+## png('selection.png')
+smoothScatter(sigma,y,colramp=function(n)gray.colors(n,rev=TRUE),ylab='Y',xlab=expression(sigma),xlim=c(.1,max(sigma)-.2),ylim=c(-2,2),bandwidth=.1,transformation=function(x)x^.25)
+abline(h=0,lty=1)
+abline(0,threshold,lty=2)
+y.conditional.mean <- dnorm(threshold)/(1-pnorm(threshold))*sigma
+## conditional.mean <- sigma*dnorm(threshold)/(1-pnorm(threshold))
+## lines(sigma,y.conditional.mean,lty=3)
+z.conditional.mean <- dnorm(threshold)/(1-pnorm(threshold))
+abline(a=0,b=z.conditional.mean,lty=3)
+## abline(a=z.conditional.mean,b=-z.conditional.mean,lty=4)
+## conditional.mean <- sigma*dnorm(threshold)/(1-pnorm(threshold))
+## abline(h=z.conditional.mean,lty=4)
+## dev.off()
+dev.off()
+
+png('figs/thresholding_z.png', width = 1024, height = 768, pointsize=15, family='CM Roman')
+z <- y/sigma
+## png('selection.png')
+smoothScatter(sigma,z,colramp=function(n)gray.colors(n,rev=TRUE),ylab='Z',xlab='S',xlim=c(.1,max(sigma)-.2),ylim=c(-2,2),bandwidth=.1,transformation=function(x)x^.25)
+abline(h=0,lty=1)
+abline(h=threshold,lty=2)
+z.conditional.mean <- dnorm(threshold)/(1-pnorm(threshold))
+abline(h=z.conditional.mean,lty=3)
+abline(a=z.conditional.mean,b=-z.conditional.mean,lty=4)
+dev.off()
+
+
+## raw y thresholding [[buggy--not used]]
+require(MASS)
+n <- 1e6
+threshold <- qnorm(1-.3)
+sigma <- sort(runif(n,0,1))
+## sigma <- sort(rexp(n))
+y <- rnorm(n,sd=sigma)
+## png('selection.png')
+smoothScatter(sigma,y,colramp=function(n)gray.colors(n,rev=TRUE),ylab='Y',xlab=expression(sigma),xlim=c(.1,max(sigma)-.2),ylim=c(-2,2),bandwidth=.1,transformation=function(x)x^.25)
+## abline(0,threshold,lty=2)
+abline(h=threshold,lty=2)
+abline(h=0,lty=1)
+y.conditional.mean <- dnorm(threshold/sigma)/(1-pnorm(threshold/sigma))*sigma
+## conditional.mean <- sigma*dnorm(threshold)/(1-pnorm(threshold))
+lines(sigma,y.conditional.mean,lty=3)
+z.conditional.mean <- dnorm(threshold/sigma)/(1-pnorm(threshold/sigma))
+## conditional.mean <- sigma*dnorm(threshold)/(1-pnorm(threshold))
+lines(sigma,z.conditional.mean,lty=4)
+## dev.off()
+
+
+
+## 2. formulas for skew example
+
+alpha <- runif(1)
+p.alpha <- function(x)1-alpha*(1-pexp(x))
+q.alpha <- function(q)ifelse(q<= p.alpha(0), 0, -log(1-(1-q)/alpha ) )
+x <- q.alpha(runif(1e4))
+plot(ecdf(x))
+curve(p.alpha,add=TRUE,col=2)
+k <- sample(1:10,1)
+## mean(rexp(1e4)^k)
+alpha*integrate(function(s)s^(k-1)*(1-pexp(s)),0,Inf)$val*k
+integrate(function(s)s^(k-1)*(1-p.alpha(s)),0,Inf)$val*k
+alpha*mean(rexp(1e4)^k)
+s <- rexp(1e4)
+s.alpha <- q.alpha(runif(1e4))
+mean(s.alpha^k)
+var(s.alpha)
+alpha*var(s) - alpha*(alpha-1)*mean(s)^2
+mean(abs(q.alpha(runif(1e4)) - q.alpha(runif(1e4))))
+2*alpha*(1-alpha)*mean(s) + alpha^2*mean(abs(rexp(1e4)-rexp(1e4)))
+
+
+## 3. proposition about pearson begg statistic
+source('misc.R')
+n <- 10
+y <- rnorm(n)+3
+s <- runif(n,1,4)+2
+z <- y*s
+v <- 1/s^2
+m <- function(k)mean(s^k)
+theta.fe <- sum(y/v)/sum(1/v)
+residual <- (y - theta.fe)/sqrt(v)
+lm0 <- lm(residual ~ I(1/sqrt(v)))
+## egger effect size
+coef(lm0)[1] - egger.test(y,v)['statistic']
+## egger test statistic
+coef(summary(lm0))['(Intercept)','t value'] - egger.test(y,v)['z.statistic']
+## begg test statistic
+r <- cor(residual,1/sqrt(v),method='pearson')
+beta1.t.stat <- r*sqrt((n-2)/(1-r^2))
+coef(summary(lm0))['I(1/sqrt(v))','t value'] - beta1.t.stat
+## formula for perason begg tstat in terms of m,s,z
+RSS <- sum(resid(lm0)^2) / (n-2)
+(  (mean(y*s^2)-m(1)*mean(y*s) ) / sqrt(m(2)-m(1)^2)  - sqrt(m(2)-m(1)^2)*mean(y*s^2)/m(2) ) * sqrt(n/RSS) - beta1.t.stat
+## formula for egger tstat in terms of m,s,z
+( mean(y*s)*sqrt((m(2)-m(1)^2)/m(2)) - m(1)*(mean(y*s^2)-m(1)*mean(y*s))/sqrt(m(2)*(m(2)-m(1)^2))    ) * sqrt(n/RSS) - egger.test(y,v)['z.statistic']
+## formula for difference of squares
+n/RSS* (mean(z*s)*mean(s)-mean(z)*mean(s^2))^2 / mean(s^2)^2 - (egger.test(y,v)['z.statistic']^2 - beta1.t.stat^2)
+
+
+## usual f-statistic invalid. but 2*f.stat ~ F(1,n-2).
+n <- 20
+fstats <- replicate(1e3, {
+    x <- rnorm(n)
+    y <- rnorm(n)
+    resids <- resid(lm(y~x-1))
+    lm0 <- lm(resids~0)
+    lm1 <- lm(resids~1+x)
+    fstat <- anova(lm0,lm1)$'F'[2]
+})
+plot(ecdf(fstats))
+curve(pf(x,2,n-2),add=TRUE,col=2)
+
+plot(ecdf(2*fstats))
+curve(pf(x,1,n-2),add=TRUE,col=2)
+
+
+
+
+## 4. check variance corrections in begg stat are O(1/n)
+
+n <- 10
+ns <- round(seq(10,2e2,len=30))
+by.n <- sapply(ns, function(n) {
+    replicate(5e1, {
+        y <- rnorm(n)#rt(n,df=5)
+        v <- runif(n)
+        theta.fe <- sum(y/v)/sum(1/v)
+        ## s <- 1/sqrt(v)
+        ## z <- y*s
+        ## theta.fe <- sum(z*s)/sum(s^2)
+        ## n <- length(z)
+        ## tau.hat.approx <- 2*mean(apply(combn(n,2),2,function(idx)(z[idx[1]]-z[idx[2]])/(s[idx[1]]-s[idx[2]])<theta.fe)) - 1
+        u <- (y-theta.fe)/sqrt(v)
+        w <- sqrt(v)
+        tau.hat.approx <- 2*mean(apply(combn(n,2),2,function(idx)(u[idx[1]]-u[idx[2]])*(w[idx[1]]-w[idx[2]])> 0)) - 1
+        u <- (y-theta.fe)/sqrt(v - 1/sum(1/v))
+        w <- sqrt(v)
+        tau.hat <- 2*mean(apply(combn(n,2),2,function(idx)(u[idx[1]]-u[idx[2]])*(w[idx[1]]-w[idx[2]])> 0)) - 1
+        tau.hat.approx - tau.hat
+    })
+})
+by.n <- simplify2array(by.n)
+source('../utils.R')
+rate(ns,by.n)
+
+
+
+
+## 5. power simulations
+
+source('misc.R')
+sim.power <- function(Z.distr,par.S,theta,alpha, B=B,n=n) {
+    ZS <- ZS.distr(Z.distr=Z.distr,par.S=par.S,cutoff.mean=theta) 
+    p.vals <- replicate(B,  expr={
+        s <- ZS$rS(n)
+        z <- ZS$rZ(n)
+        y <- z/s
+        if(any(is.infinite(y)))browser()
+        v <- 1/s^2
+        p.val.egger <- egger.test(y,v)['p.value']
+        p.val.begg <- begg.test(y,v)['p.value']
+        ## p.val.begg <- lin.test(y,v)['pval']
+        c(egger=unname(p.val.egger), begg=unname(p.val.begg))
+    })
+    rowMeans(p.vals < alpha)
+}
+sim.plot <- function(by.params,split.par,thetas,filename=NULL) {
+    ## browser()
+    if(!is.null(filename)) {
+        print(filename)
+        extrafont::loadfonts()
+        png(paste0('figs/',filename), width = 1024, height = 768, pointsize=15, family='CM Roman')
+    }
+    op <- par(mfrow=c(1,3))
+    for(test in c('egger','begg')) {
+        label <- switch(test,egger="Egger's test",begg="Begg's test")
+        plot(0,type='n',ylim=c(0,1),xlim=range(thetas),xlab=expression(theta),ylab='power',main=label)
+        abline(h=alpha,lty=2)
+        for(df in split(by.params,by.params[,split.par])) {
+            ## browser()
+            lines(df$theta, df[,test])
+            text(df$theta[length(df$theta)],df[,test][length(df[,test])],unique(df[,split.par]))
+        }
+        ## lines(df$theta, loess(df$egger ~ df$theta)$fitted)
+    }
+    plot(0,type='n',ylim=range(by.params$egger/by.params$begg,na.rm=TRUE),xlim=range(thetas),xlab=expression(theta),ylab='egger power / begg power',main='ratio')
+    for(df in split(by.params,by.params[,split.par])) {
+        ## browser()
+        ratios <- df$egger / df$begg
+        ## smoothed <- fitted(loess(ratios ~ df$theta,span=.5))
+        lines(df$theta, ratios)
+        ## print(max(df$egger/df$begg))
+        text(thetas[which.max(ratios)],max(ratios),unique(df[,split.par]))
+    }
+    if(!is.null(filename)) dev.off()
+    par(op)
+}
+## codetools::findGlobals(sim.plot)
+## 5a. S pareto
+set.seed(0)
+alpha <- .1
+## beta <- .8
+B <- 5e3
+n <- 20
+## ns <- round(seq(10,2e2,length.out=5e1))
+## B <- 2e1
+Z.distr <- Z.normal
+shapes <- seq(2.01,5,len=3) |> round(digits=2)
+thetas <- seq(0,1.5,len=20)
+params <- expand.grid(theta=thetas,shape=shapes,stringsAsFactors=FALSE)
+res.power <- sapply(1:nrow(params),function(i)sim.power(Z.distr=Z.distr,par.S=S.pareto(c(location=1,shape=params[i,'shape'])),theta=params[i,'theta'],alpha=alpha, B=B,n=n))
+by.params.Z.normal <- cbind(params,t(res.power))
+sim.plot(by.params.Z.normal,split.par='shape',thetas,filename='S_pareto.png') 
+## 5b S beta
+set.seed(0)
+Z.distr <- Z.normal
+shapes <- seq(1,20,len=3) |> round(digits=2)
+thetas <- seq(0,5,len=20)
+params <- expand.grid(theta=thetas,shape=shapes,stringsAsFactors=FALSE)
+res.power <- sapply(1:nrow(params),function(i)sim.power(Z.distr=Z.distr,par.S=S.beta(c(a=1/params[i,'shape'],b=params[i,'shape'],shift=1)),theta=params[i,'theta'],alpha=alpha, B=B,n=n))
+by.params.S.beta <- cbind(params,t(res.power))
+sim.plot(by.params.S.beta,split.par='shape',thetas,filename='S_beta.png') 
+## 5c Z Student's
+set.seed(0)
+par.S <- S.unif(c(0,1))
+thetas <- seq(0,1,len=20)
+dfs <- seq(2.01,3,len=3) |> round(digits=2)
+params <- expand.grid(theta=thetas,df=dfs,stringsAsFactors=FALSE)
+res.power <- sapply(1:nrow(params),function(i)sim.power(Z.distr=Z.t(params[i,'df']),par.S=par.S,theta=params[i,'theta'],alpha=alpha, B=B,n=n)
+)
+by.params.Z.t <- cbind(params,t(res.power))
+sim.plot(by.params.Z.t,split.par='df',thetas,filename='Z_t.png') 
+## 5d Z beta
+set.seed(0)
+par.S <- S.unif(c(0,1))
+thetas <- seq(0,2,len=20)
+shapes <- c(.51,.65,.75)# |> round(digits=2)
+params <- expand.grid(theta=thetas,shape=shapes,stringsAsFactors=FALSE)
+res.power <- sapply(1:nrow(params),function(i)sim.power(Z.distr=Z.beta(a=params[i,'shape'],b=1/(params[i,'shape']-.5)),par.S=par.S,theta=params[i,'theta'],alpha=alpha, B=B,n=n)
+)
+by.params.Z.beta <- cbind(params,t(res.power))
+sim.plot(by.params.Z.beta,split.par='shape',thetas,filename='Z_beta.png') 
+## 5e S uniform
+set.seed(0)
+Z.distr <- Z.normal
+shifts <- seq(0,5,len=3)
+thetas <- seq(0,1.5,len=20)
+params <- expand.grid(theta=thetas,shift=shifts,stringsAsFactors=FALSE)
+res.power <- sapply(1:nrow(params),function(i)sim.power(Z.distr=Z.distr,par.S=S.unif(c(0,1)+params[i,'shift']),theta=params[i,'theta'],alpha=alpha, B=B,n=n))
+by.params.S.uniform <- cbind(params,t(res.power))
+sim.plot(by.params.S.uniform,split.par='shift',thetas,filename='S_unif.png') 
+## save.image('sessions/240828.RData')
