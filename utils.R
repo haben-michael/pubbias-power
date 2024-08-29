@@ -1,4 +1,39 @@
 
+begg.test <- function(y,v,method='kendall',exact=FALSE,...) {
+    theta.fe <- sum(y/v)/sum(1/v)
+    if(!exact) {
+        out <- cor.test((y-theta.fe)/sqrt(v-1/sum(1/v)),v,method=method,...)
+             ## structure(unname(c(stat=estimate,pval=p.value)),names=c('statistic','p.value')))
+    } else {
+        s <- 1/sqrt(v)
+        z <- y*s
+        ## theta.fe <- sum(z*s)/sum(s^2) # already calculated, clean
+        n <- length(z)
+        tau.hat <- 2*mean(apply(combn(n,2),2,function(idx)(z[idx[1]]-z[idx[2]])/(s[idx[1]]-s[idx[2]])<theta.fe)) - 1
+        statistic <- sqrt(9*n/4)*abs(tau.hat)
+        pval <- 2*(1-pnorm(statistic))
+        out <- list(estimate=tau.hat, p.value=pval, statistic=statistic, stderr = 2/3/sqrt(n), null.value=0, parameter=c(), alternative='two-sided')
+    }
+    out$data.name <-  paste(deparse(substitute(y)), 'and', deparse(substitute(v)))
+    out$method <- paste("Begg's test", if(exact) "(exact)" else "(cor.test approximation)")
+    class(out) <- 'htest'
+    return(out)
+}
+
+
+egger.test <- function(y,v,robust=FALSE) {
+    lm0 <- if(robust) {
+               estimatr::lm_robust(I(y/sqrt(v)) ~ I(1/sqrt(v)))
+           } else {
+               lm(I(y/sqrt(v)) ~ I(1/sqrt(v)))
+           }
+    out <- structure(unname(coef(summary(lm0))[1,]), names=c('estimate','stderr','statistic','p.value'))
+    out <- c(out, list(null.value = 0, parameter = c(), alternative = 'two-sided', method = paste0("Egger's test",if(robust)' (robust)' else NULL), data.name = paste(deparse(substitute(y)), 'and', deparse(substitute(v))) ))
+    class(out) <- 'htest'
+    return(out)
+}
+
+
 ## given CDF, density and quantile function, return same after left truncation
 trunc.distr <- function(lower,p.full,d.full,q.full) {
     p.trunc <- function(q) (q>=lower)*(p.full(q)-p.full(lower))/(1-p.full(lower))
@@ -149,67 +184,6 @@ S.pareto <- function(S.par=c(location=1,shape=1)) {
     mean.S.pair <- 2 * integrate(function(s)pS(s)*(1-pS(s)), supp.S[1],supp.S[2])$val
     return( structure(class='S.distribution',mget(ls())) )
     }
-
-
-## ## TODO: conform to htest class, also for Egger's
-## begg.test <- function(y,v,method='kendall',exact=FALSE,...) {
-##     theta.fe <- sum(y/v)/sum(1/v)
-##     if(!exact) {
-##         out <- with(cor.test((y-theta.fe)/sqrt(v-1/sum(1/v)),v,method=method,...),
-##              structure(unname(c(stat=estimate,pval=p.value)),names=c('statistic','p.value')))
-##     } else {
-##         s <- 1/sqrt(v)
-##         z <- y*s
-##         theta.fe <- sum(z*s)/sum(s^2) # already calculated, clean
-##         n <- length(z)
-##         tau.hat <- 2*mean(apply(combn(n,2),2,function(idx)(z[idx[1]]-z[idx[2]])/(s[idx[1]]-s[idx[2]])<theta.fe)) - 1
-##         pval <- 2*(1-pnorm(sqrt(9*n/4)*abs(tau.hat)))
-##         c(stat=tau.hat,pval=pval)
-##     }
-## }
-
-begg.test <- function(y,v,method='kendall',exact=FALSE,...) {
-    theta.fe <- sum(y/v)/sum(1/v)
-    if(!exact) {
-        out <- cor.test((y-theta.fe)/sqrt(v-1/sum(1/v)),v,method=method,...)
-             ## structure(unname(c(stat=estimate,pval=p.value)),names=c('statistic','p.value')))
-    } else {
-        s <- 1/sqrt(v)
-        z <- y*s
-        ## theta.fe <- sum(z*s)/sum(s^2) # already calculated, clean
-        n <- length(z)
-        tau.hat <- 2*mean(apply(combn(n,2),2,function(idx)(z[idx[1]]-z[idx[2]])/(s[idx[1]]-s[idx[2]])<theta.fe)) - 1
-        statistic <- sqrt(9*n/4)*abs(tau.hat)
-        pval <- 2*(1-pnorm(statistic))
-        out <- list(estimate=tau.hat, p.value=pval, statistic=statistic, stderr = 2/3/sqrt(n), null.value=0, parameter=c(), alternative='two-sided')
-    }
-    out$data.name <-  paste(deparse(substitute(y)), 'and', deparse(substitute(v)))
-    out$method <- paste("Begg's test", if(exact) "(exact)" else "(cor.test approximation)")
-    class(out) <- 'htest'
-    return(out)
-}
-
-
-## egger.test <- function(y,v,robust=FALSE) {
-##     lm0 <- if(robust) {
-##                estimatr::lm_robust(I(y/sqrt(v)) ~ I(1/sqrt(v)))
-##            } else {
-##                lm(I(y/sqrt(v)) ~ I(1/sqrt(v)))
-##            }
-##     structure(unname(coef(summary(lm0))[1,c(1,3,4)]), names=c('statistic','z.statistic','p.value'))
-## }
-
-egger.test <- function(y,v,robust=FALSE) {
-    lm0 <- if(robust) {
-               estimatr::lm_robust(I(y/sqrt(v)) ~ I(1/sqrt(v)))
-           } else {
-               lm(I(y/sqrt(v)) ~ I(1/sqrt(v)))
-           }
-    out <- structure(unname(coef(summary(lm0))[1,]), names=c('estimate','stderr','statistic','p.value'))
-    out <- c(out, list(null.value = 0, parameter = c(), alternative = 'two-sided', method = paste0("Egger's test",if(robust)' (robust)' else NULL), data.name = paste(deparse(substitute(y)), 'and', deparse(substitute(v))) ))
-    class(out) <- 'htest'
-    return(out)
-}
 
 ZS.distr <- function(Z.distr,par.S,supp.Z=NULL,cutoff.mean=0) {
     supp.Z[1] <- Z.distr(supp.Z)$theta.to.cutoff(cutoff.mean)
